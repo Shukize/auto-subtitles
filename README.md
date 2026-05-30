@@ -22,6 +22,15 @@ automatic CPU fallback), so transcription is fast and private.
 - **Batch mode**: transcribe a whole folder and write a `.srt` next to each file.
 - Self-contained — **ffmpeg is bundled**, nothing else to install.
 
+## Easiest way to run (Windows)
+
+**Double-click `start.bat`.**
+
+On the first launch it automatically creates the virtual environment and installs
+everything it needs (this can take a few minutes). Every launch after that just
+opens the app. The only prerequisite is [Python 3.10+](https://www.python.org/downloads/)
+installed with *"Add python.exe to PATH"* ticked.
+
 ## Quick start (from source)
 
 ```powershell
