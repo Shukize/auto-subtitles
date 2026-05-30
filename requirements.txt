@@ -1,0 +1,22 @@
+# Core GUI
+PySide6==6.7.2
+
+# Speech-to-text (accurate, GPU-accelerated with CPU fallback)
+faster-whisper==1.0.3
+
+# CUDA runtime libs for GPU inference (CTranslate2 backend).
+# These are optional at runtime: if missing/incompatible the app falls back to CPU.
+nvidia-cublas-cu12; platform_system == "Windows"
+nvidia-cudnn-cu12; platform_system == "Windows"
+
+# Bundled ffmpeg binary (so the packaged .exe is self-contained)
+imageio-ffmpeg==0.5.1
+
+# Subtitle parsing / writing / styling (SRT, ASS, VTT)
+pysubs2==1.7.3
+
+# Translation (any language, online via Google) - pluggable backend
+deep-translator==1.11.4
+
+# Packaging
+pyinstaller==6.10.0
