@@ -9,8 +9,9 @@ import json
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 import imageio_ffmpeg
 
@@ -144,6 +145,23 @@ def _run_with_progress(
         text=True, bufsize=1, **_no_window_kwargs(),
     )
     assert proc.stdout is not None
+
+    # Drain stderr in a background thread so its pipe buffer never fills up
+    # and deadlocks ffmpeg mid-encode (common on long videos where ffmpeg emits
+    # many warning/info lines even with -nostats).
+    stderr_lines: List[str] = []
+
+    def _drain_stderr() -> None:
+        assert proc.stderr is not None
+        try:
+            for ln in proc.stderr:
+                stderr_lines.append(ln)
+        except Exception:
+            pass
+
+    drain_thread = threading.Thread(target=_drain_stderr, daemon=True)
+    drain_thread.start()
+
     for line in proc.stdout:
         line = line.strip()
         if progress and duration and line.startswith("out_time_ms="):
@@ -153,9 +171,12 @@ def _run_with_progress(
                 progress(frac)
             except (ValueError, ZeroDivisionError):
                 pass
+
     proc.wait()
+    drain_thread.join(timeout=5.0)
+
     if proc.returncode != 0:
-        err = proc.stderr.read() if proc.stderr else ""
+        err = "".join(stderr_lines)
         raise RuntimeError(f"ffmpeg failed (code {proc.returncode}):\n{err[-2000:]}")
     if progress:
         progress(1.0)

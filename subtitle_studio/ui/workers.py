@@ -39,6 +39,6 @@ class Worker(QThread):
             result = self._job(self._emit_progress, self._is_cancelled)
             if not self._cancel:
                 self.done.emit(result)
-        except Exception as exc:  # surfaced to the UI
+        except BaseException as exc:  # BaseException catches MemoryError and native errors
             if not self._cancel:
-                self.failed.emit(str(exc))
+                self.failed.emit(str(exc) or type(exc).__name__)

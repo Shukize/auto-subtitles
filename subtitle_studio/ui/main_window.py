@@ -741,8 +741,13 @@ class MainWindow(QMainWindow):
         self.worker.progress.connect(self._on_progress)
 
         def done(result):
-            on_done(result)
-            self.worker = None
+            try:
+                on_done(result)
+            except Exception as exc:
+                self._busy(False, "Error displaying results.")
+                QMessageBox.critical(self, "Error", str(exc))
+            finally:
+                self.worker = None
 
         def failed(msg):
             self._busy(False, "Failed.")

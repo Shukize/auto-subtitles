@@ -5,6 +5,7 @@ language coverage). The translator batches lines and preserves cue timing.
 """
 from __future__ import annotations
 
+import time
 from typing import Callable, List, Optional
 
 # Common targets surfaced in the UI. "auto" source is always allowed.
@@ -51,30 +52,48 @@ def translate_lines(
     src = "auto" if source in ("auto", "", None) else language_code(source)
     translator = GoogleTranslator(source=src, target=target)
 
-    out: List[str] = [""] * len(lines)
+    # Default to originals so any failure automatically keeps source text.
+    out: List[str] = list(lines)
     # Indices of non-empty lines we actually need to translate.
     todo = [i for i, t in enumerate(lines) if t and t.strip()]
 
-    # deep-translator's batch endpoint handles lists; chunk to stay within limits.
-    BATCH = 25
+    # Reduced batch size to avoid hitting Google's per-request character limit
+    # and rate-limiting for long videos (100+ cues / 4-8 requests in a row).
+    BATCH = 20
     done = 0
     for start in range(0, len(todo), BATCH):
         if cancelled and cancelled():
             raise RuntimeError("Cancelled")
         idx_chunk = todo[start:start + BATCH]
         texts = [lines[i] for i in idx_chunk]
+
+        # Small delay between batches to avoid rate-limiting (Google blocks
+        # rapid consecutive requests, especially for less-common target langs).
+        if start > 0:
+            time.sleep(0.4)
+
         try:
             results = translator.translate_batch(texts)
+            # translate_batch can return None or a shorter list on partial failure.
+            if not isinstance(results, list) or len(results) != len(texts):
+                raise ValueError("unexpected batch result shape")
+            for i, res in zip(idx_chunk, results):
+                if res and str(res).strip():
+                    out[i] = str(res)
         except Exception:
-            # Fall back to per-line; keep original on failure.
-            results = []
-            for t in texts:
+            # Batch failed — retry line by line with small inter-request delay.
+            for j, (idx, t) in enumerate(zip(idx_chunk, texts)):
+                if cancelled and cancelled():
+                    raise RuntimeError("Cancelled")
+                if j > 0:
+                    time.sleep(0.15)
                 try:
-                    results.append(translator.translate(t))
+                    res = translator.translate(t)
+                    if res and str(res).strip():
+                        out[idx] = str(res)
                 except Exception:
-                    results.append(t)
-        for i, res in zip(idx_chunk, results):
-            out[i] = res if res else lines[i]
+                    pass  # keep original (already set above)
+
         done += len(idx_chunk)
         if progress and todo:
             progress(min(1.0, done / len(todo)))

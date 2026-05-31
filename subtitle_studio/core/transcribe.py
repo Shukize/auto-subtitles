@@ -143,17 +143,23 @@ def transcribe(
         detected = getattr(info, "language", lang or "unknown")
         return words, plain, dur, detected
 
+    _GPU_ERR_KEYS = (
+        "cuda", "cublas", "cudnn", "gpu", "library",
+        "out of memory", "oom", "invalid device", "no kernel image",
+    )
+
     try:
         raw_words, plain_cues, duration, detected_lang = run(
             settings.device, settings.compute_type
         )
-    except RuntimeError as exc:
+    except Exception as exc:
         msg = str(exc)
-        # CUDA libraries missing/incompatible at inference time -> retry on CPU.
+        # CUDA/GPU failure at inference time (OOM, missing libs, driver mismatch)
+        # -> retry transparently on CPU so the job always completes.
         if msg != "Cancelled" and settings.device != "cpu" and \
-                any(k in msg.lower() for k in ("cuda", "cublas", "cudnn", "gpu", "library")):
+                any(k in msg.lower() for k in _GPU_ERR_KEYS):
             if progress:
-                progress(0.02, "GPU unavailable — falling back to CPU…")
+                progress(0.02, "GPU error — falling back to CPU…")
             raw_words, plain_cues, duration, detected_lang = run("cpu", "int8")
         else:
             raise
